@@ -1,0 +1,90 @@
+TryHackMe: Searchlight IMINT - Writeup
+Difficulty: Easy
+
+Topic: Image Intelligence (IMINT) and Geospatial Intelligence (GEOINT)
+
+Flag Format: sl{flag}
+
+Task 1: Introduction
+This task is an introduction to the world of IMINT and GEOINT.
+
+Question: The answer to the question below is: ready.
+
+Flag: sl{ready}
+
+Task 2: Your first tool - Your eyes!
+This task focuses on visual extraction and identifying key data points (street signs, architecture, etc.).
+
+Observation: The image shows a prominent sign saying "Welcome to Carnaby Street."
+
+Flag: sl{carnaby street}
+
+Task 3: Google Fu
+This task introduces "Google Dorking" or advanced search queries to identify landmarks.
+
+Which city is the tube station located in? London
+
+Which tube station do these stairs lead to? Piccadilly Circus
+
+Which year did this station open? 1906
+
+How many platforms are there in this station? 4
+
+Flag Format Example: sl{london}, sl{piccadilly circus}, etc.
+
+Task 4: Map Mentality
+Using visual clues like airport codes and logos.
+
+Which building is this photo taken in? Vancouver International Airport (YVR)
+
+Which country is this building located in? Canada
+
+Which city is this building located in? Richmond (Note: While often associated with Vancouver, YVR is physically located in Richmond, BC).
+
+Task 5: Coffee and OSINT
+Focuses on identifying local businesses using signs and external metadata.
+
+Which city is this coffee shop located in? Blairgowrie
+
+Which street is this coffee shop located in? Allan Street
+
+What is their phone number? +44 1250 872185
+
+What is their email address? hello@theweecoffeeshop.co.uk
+
+What is the surname of the owners? Seggie
+
+Task 6: Reverse Image Search
+Using tools like RevEye, Google Lens, or Yandex to find the source of an image.
+
+Which restaurant was this picture taken at? Katz's Delicatessen
+
+What is the name of the Bon Appétit editor that worked 24 hours at this restaurant? Andrew Knowlton
+
+Task 7: Tools of the Trade
+This challenge involves identifying a specific statue or art piece.
+
+Hint: Rudolph the Chrome Nosed Reindeer.
+
+Location/Subject: This refers to the unique reindeer sculpture found at the Oslo Airport (Gardermoen) in Norway.
+
+Task 8: Landmarks
+Focuses on identifying world-famous iconography.
+
+Search Query: "Lady Justice"
+
+Context: This often leads to the US..
+
+Task 9: Video OSINT
+Geolocation based on a video clip by identifying landmarks in the background or reflections.
+
+Analysis: By identifying the skyline and specific building shapes, we can pinpoint the hotel.
+
+Flag: sl{novotel singapore clarke quay}
+
+Tools Used
+Google Lens / Yandex: For Reverse Image Search.
+
+Google Maps / Street View: For verifying street names and storefronts.
+
+RevEye Extension: To quickly pivot between multiple search engines.
