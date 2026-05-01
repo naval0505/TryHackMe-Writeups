@@ -1,0 +1,30 @@
+So today we are going to solve another THM lab which is another game hacking source reviewing lab -> TetrixFinal.
+
+
+So we download zip to our kali and let's start debugging.
+We got this zip -> TetrixFinal.exe-1741991867073.zip
+
+
+After unzipping we got this.
+
+ls -lah
+total 129M
+drwxr-xr-x  3 root root 4.0K May  1 16:08 .
+drwxr-xr-x 17 root root 4.0K May  1 16:06 ..
+drwxr-xr-x  2 root root 4.0K May  1 16:08 __MACOSX
+-rw-rw-rw-  1 root root  91M Mar 15  2025 TetrixFinal.exe
+-rw-rw-r--  1 kali kali  39M May  1 16:06 TetrixFinal.exe-1741991867073.zip                                                               
+-rw-r--r--  1 root root  227 May  1 16:08 tetrix.txt
+
+and with some good knowledge of strings get's us the flag.
+
+
+┌──(root㉿kali)-[/home/kali/thm/gamehack1]
+└─# strings TetrixFinal.exe  | grep -i THM{
+THM{GAME_MASTER_HACKER}
+
+but this isnot what you want.
+
+from GODOT engine or ghidra just read thecode u willsee u need toplay the game
+
+THM{MEMORY_CAN_CHANGE_4R34L$-$} and u will get the flag.
