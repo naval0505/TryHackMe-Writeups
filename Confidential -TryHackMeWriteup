@@ -1,0 +1,21 @@
+So today we are going to solve another DFIR lab from TryHackMe which is an easy lab -> Confidential.
+
+This will challenge you to think how to extract images only which is obfuscated inbetween of blurriness.
+
+We will use tool like pdfimage, and more which will help us achieve our goal 
+
+As usual this machine have their own environments on THM.
+
+/home/ubuntu/confidential# ls Repdf.pdf 
+Repdf.pdf
+
+
+So this is pdf we have and let’s try to extract images from here.
+
+ ext-000.png  ext-001.png  ext-002.png
+root@thm-confidential:/home/ubuntu/confidential# pdfimages -png Repdf.pdf ext
+
+
+Withthistool we got our all images from pdf now using online reader will give us the flag.
+
+And will have our flag{REDACTED}
