@@ -1,0 +1,495 @@
+So today we are going to solve another TryHackMe Challenge which is MayhemRoom in this we are been given file through which we have to work as incident responder or need to analyze files.
+
+
+Beneath the tempest's roar, a quiet grace,
+Mayhem's beauty in a h﻿idden place.
+Within the chaos, a paradox unfolds,
+A tale of beauty, in disorder it molds.
+Click on the Download Task Files button at the top of this task. You will be provided with an evidence.zip file. Extract the zip file's contents and begin your analysis in order to answer the questions.
+Note: Some browsers may detect the file as malicious. The zip file is safe to download with md5 of a7d64354e4b8798cff6e063449c1e64f. In general, as a security practice, download the zip and analyze the forensic files on a dedicated virtual machine, and not on your host OS. Always handle such files in isolated, controlled, and secure environments.
+
+
+
+So this is what we are been given as scenarios.
+
+So we will start with unzipping the file we are given evidence-*.zip and we will get traffic packet capture file for wireshark.
+
+But before moving to wireshark we look for this md5 hash on virustotal so that atleast we can get the idea what is it.
+
+ALYac
+Generic.Trojan.Havokiz.Marte.E.217DB0C6
+Arcabit
+Generic.Trojan.Havokiz.Marte.E.217DB0C6
+
+We get this from virustotal so let’s start analysing traffic with wireshark.
+
+
+So we can assume that this is Havoc framework from the virus total analysis so we can have this.
+
+The Havoc command and control (C2) framework is a flexible post-exploitation framework written in Golang, C++, and Qt, created by C5pider. Engineered to support red team engagements and adversary emulation, Havoc offers a robust set of capabilities tailored for offensive security operations.Havoc was first released in October 2022, and is still under active development. At the time of writing, Havoc supports HTTP(s) and SMB as a communication protocol for the implants. Havoc’s ability to generate payloads, including exe binaries, dll files, and shellcode, appeals to threat actors seeking a malleable and simple post-exploitation framework for their campaigns.This research aims to empower defenders to detect the presence of Havoc, analyze its proprietary agents, known as Demons, and enhance organizational resilience against modern post-exploitation attack flows.
+
+The traffic is encrypted as assumed. Havoc uses AES in CTR mode for this purpose.
+
+
+Let’s  search for havoc decrompessor that comes from immersivelabs repo.
+
+https://github.com/Immersive-Labs-Sec/HavocC2-Forensics/blob/main/PacketCapture/havoc-pcap-parser.py
+
+We find this repo.
+ 
+Install it in your required platform currently we are using Flare-VM windows we have all installed some necessary tools we will need is pshark or tshark total in poweshell so i have.
+
+After this we will move to l 
+
+Powershell to run the command
+
+Successfully installed appdirs-1.4.4 lxml-6.1.0 packaging-26.2 pyshark-0.6 termcolor-3.3.0
+PS C:\Users\Flare-VM\Desktop\TryHackMe - Challenges\Mayhem> python.exe  .\pcaphavoc.py --pcap .\traffic.pcapng
+[+] Parsing Packets
+[+] Parsing Request
+[!] Error parsing request body: 'NoneType' object has no attribute 'replace'
+[+] Parsing Request
+[!] Error parsing request body: 'NoneType' object has no attribute 'replace'
+[+] Parsing Request
+[!] Error parsing request body: 'NoneType' object has no attribute 'replace'
+[+] Parsing Request
+[+] Found Havoc C2
+  [-] Agent ID: 0e9fb7d8
+  [-] Magic Bytes: deadbeef
+  [-] C2 Address: http://10.0.2.37/
+  [+] Found AES Key
+    [-] Key: 946cf2f65ac2d2b868328a18dedcc296cc40fa28fab41a0c34dcc010984410ca
+    [-] IV: 8cd00c3e349290565aaa5a8c3aacd430
+
+We see C2 Address and the magic bytes in it. 
+
+
+We see list of command for this in here like 
+
+   [-] IV: 8cd00c3e349290565aaa5a8c3aacd430
+[+] Parsing Request
+  [+] Job Request from Server to Agent
+    [-] C2 Address: http://10.0.2.37/
+    [-] Comamnd: COMMAND_NOJOB
+[+] Parsing Request
+  [+] Job Request from Server to Agent
+    [-] C2 Address: http://10.0.2.37/
+    [-] Comamnd: COMMAND_NOJOB
+[+] Parsing Request
+  [+] Job Request from Server to Agent
+    [-] C2 Address: http://10.0.2.37/
+    [-] Comamnd: COMMAND_NOJOB
+[+] Parsing Request
+  [+] Job Request from Server to Agent
+    [-] C2 Address: http://10.0.2.37/
+    [-] Comamnd: COMMAND_NOJOB
+[+] Parsing Request
+  [+] Job Request from Server to Agent
+    [-] C2 Address: http://10.0.2.37/
+    [-] Comamnd: COMMAND_NOJOB
+[+] Parsing Request
+  [+] Job Request from Server to Agent
+
+> python.exe  .\pcaphavoc.py --pcap .\traffic.pcapng  --save . we run this in powershell  and we will get the answer for this.
+
+So now for decrypting everything we have all
+
+The modified script of python that we can use to decrypt the traffic
+
+	# Copyright (C) 2024 Kev Breen, Immersive Labs
+	# https://github.com/Immersive-Labs-Sec/HavocC2-Forensics
+	#
+	# Permission is hereby granted, free of charge, to any person obtaining a copy
+	# of this software and associated documentation files (the "Software"), to deal
+	# in the Software without restriction, including without limitation the rights
+	# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+	# copies of the Software, and to permit persons to whom the Software is
+	# furnished to do so, subject to the following conditions:
+	
+	# The above copyright notice and this permission notice shall be included in all
+	# copies or substantial portions of the Software.
+	
+	# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+	# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+	# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+	# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+	# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+	# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+	# SOFTWARE.
+	import os
+	import argparse
+	import struct
+	import binascii
+	from binascii import unhexlify
+	
+	from uuid import uuid4
+	
+	
+	try:
+	    import pyshark
+	except ImportError:
+	    print("[-] Pyshark not installed, please install with 'pip install pyshark'")
+	    exit(0)
+	
+	try:
+	    from Crypto.Cipher import AES
+	    from Crypto.Util import Counter
+	except ImportError:
+	    print("[-] PyCryptodome not installed, please install with 'pip install pycryptodome'")
+	    exit(0)
+	
+	
+	
+	demon_constants = {
+	    1: "GET_JOB",
+	    10: 'COMMAND_NOJOB',
+	    11: 'SLEEP',
+	    12: 'COMMAND_PROC_LIST',
+	    15: 'COMMAND_FS',
+	    20: 'COMMAND_INLINEEXECUTE',
+	    21: 'COMMAND_JOB',
+	    22: 'COMMAND_INJECT_DLL',
+	    24: 'COMMAND_INJECT_SHELLCODE',
+	    26: 'COMMAND_SPAWNDLL',
+	    27: 'COMMAND_PROC_PPIDSPOOF',
+	    40: 'COMMAND_TOKEN',
+	    99: 'DEMON_INIT',
+	    100: 'COMMAND_CHECKIN',
+	    2100: 'COMMAND_NET',
+	    2500: 'COMMAND_CONFIG',
+	    2510: 'COMMAND_SCREENSHOT',
+	    2520: 'COMMAND_PIVOT',
+	    2530: 'COMMAND_TRANSFER',
+	    2540: 'COMMAND_SOCKET',
+	    2550: 'COMMAND_KERBEROS',
+	    2560: 'COMMAND_MEM_FILE', # Beacon Object File
+	    4112: 'COMMAND_PROC', # Shell Command
+	    4113: 'COMMMAND_PS_IMPORT',
+	    8193: 'COMMAND_ASSEMBLY_INLINE_EXECUTE',
+	    8195: 'COMMAND_ASSEMBLY_LIST_VERSIONS',
+	}
+	
+	
+	# Used to store the AES Keys for each session
+	sessions = {}
+	
+	
+	def tsharkbody_to_bytes(hex_string):
+	    """
+	    Converts a TShark hex formated string to a byte string.
+	    
+	    :param hex_string: The hex string from TShark.
+	    :return: The byte string.
+	    """
+	    # its concatonated strings
+	    hex_string = hex_string.replace(':', '')
+	    #unhex it
+	    hex_bytes = unhexlify(hex_string)
+	    return hex_bytes
+	
+	
+	
+	def aes_decrypt_ctr(aes_key, aes_iv, encrypted_payload):
+	    """
+	    Decrypts an AES-encrypted payload in CTR mode.
+	
+	    :param aes_key: The AES key as a byte string.
+	    :param aes_iv: The AES IV (Initialization Vector) for the counter, as a byte string.
+	    :param encrypted_payload: The encrypted payload as a byte string.
+	    :return: The decrypted plaintext as a byte string.
+	    """
+	    # Initialize the counter for CTR mode
+	    ctr = Counter.new(128, initial_value=int.from_bytes(aes_iv, byteorder='big'))
+	
+	    # Create the cipher in CTR mode
+	    cipher = AES.new(aes_key, AES.MODE_CTR, counter=ctr)
+	
+	    # Decrypt the payload
+	    decrypted_payload = cipher.decrypt(encrypted_payload)
+	
+	    return decrypted_payload
+	
+	
+	
+	def parse_header(header_bytes):
+	    """
+	    Parses a 20-byte header into an object.
+	
+	    :param header_bytes: A 20-byte header.
+	    :return: A dictionary representing the parsed header.
+	    """
+	    if len(header_bytes) != 20:
+	        raise ValueError("Header must be exactly 20 bytes long")
+	
+	    # Unpack the header
+	    payload_size, magic_bytes, agent_id, command_id, mem_id = struct.unpack('>I4s4sI4s', header_bytes)
+	
+	    # Convert bytes to appropriate representations
+	    magic_bytes_str = binascii.hexlify(magic_bytes).decode('ascii')
+	    agent_id_str = binascii.hexlify(agent_id).decode('ascii')
+	    mem_id_str = binascii.hexlify(mem_id).decode('ascii')
+	    command_name = demon_constants.get(command_id, f'Unknown Command ID: {command_id}')
+	
+	    return {
+	        'payload_size': payload_size,
+	        'magic_bytes': magic_bytes_str,
+	        'agent_id': agent_id_str,
+	        'command_id': command_name,
+	        'mem_id': mem_id_str
+	    }
+	
+	
+	def parse_request(http_pair, magic_bytes, save_path):
+	    request = http_pair['request']
+	    response = http_pair['response']#
+	
+	    unique_id = uuid4()
+	
+	    print("[+] Parsing Request")
+	
+	
+	    try:
+	        request_body = tsharkbody_to_bytes(request.get('file_data', ''))
+	        header_bytes = request_body[:20]
+	        request_payload = request_body[20:]
+	        request_header = parse_header(header_bytes)
+	    except Exception as e:
+	        print(f"[!] Error parsing request body: {e}")
+	        return
+	
+	
+	    # If there is no magic this is not Havoc
+	    if request_header.get("magic_bytes", '') != magic_bytes:
+	        return
+	
+	
+	    if request_header['command_id'] == 'DEMON_INIT':
+	        print("[+] Found Havoc C2")
+	        print(f"  [-] Agent ID: {request_header['agent_id']}")
+	        print(f"  [-] Magic Bytes: {request_header['magic_bytes']}")
+	        print(f"  [-] C2 Address: {request.get('uri')}")
+	
+	        aes_key = request_body[20:52]
+	        aes_iv = request_body[52:68]
+	
+	        print(f"  [+] Found AES Key")
+	        print(f"    [-] Key: {binascii.hexlify(aes_key).decode('ascii')}")
+	        print(f"    [-] IV: {binascii.hexlify(aes_iv).decode('ascii')}")
+	
+	        if request_header['agent_id'] not in sessions:
+	            sessions[request_header['agent_id']] = {
+	                "aes_key": aes_key,
+	                "aes_iv": aes_iv
+	            }
+	        
+	        # We dont want to process the rest of the request
+	        response_payload = None
+	
+	    elif request_header['command_id'] == 'GET_JOB':
+	        print("  [+] Job Request from Server to Agent")
+	         # if the pcap did not contain an init or we have manually passed keys add the found keys message
+	        
+	        # Grab the response header to get the incoming request. 
+	
+	        try:
+	            response_body = tsharkbody_to_bytes(response.get('file_data', ''))
+	
+	        except Exception as e:
+	            print(f"[!] Error parsing request body: {e}")
+	            return
+	
+	
+	        header_bytes = response_body[:12]
+	        response_payload = response_body[12:]
+	        command_id = struct.unpack('<H', header_bytes[:2])[0]
+	
+	        command = demon_constants.get(command_id, f'Unknown Command ID: {command_id}')
+	
+	        print(f"    [-] C2 Address: {request.get('uri')}")
+	        print(f"    [-] Comamnd: {command}")
+	
+	    else:
+	        print(f"  [+] Unknown Command: {request_header['command_id']}")
+	        response_payload = None
+	
+	    # If we have keys lets decode the payload
+	    aes_keys = sessions.get(request_header['agent_id'], None)
+	
+	    if not aes_keys:
+	        print(f"[!] No AES Keys for Agent with ID {request_header['agent_id']}")
+	        return
+	
+	    # If save_path is set, make sure the directory exists
+	    if save_path and not os.path.exists(save_path):
+	        print(f"[!] Save path {save_path} does not exist, creating")
+	        os.makedirs(save_path)
+	
+	    # Decrypt the Request Body
+	    if request_payload:
+	        print("  [+] Decrypting Request Body")
+	        decrypted_request = aes_decrypt_ctr(aes_keys['aes_key'], aes_keys['aes_iv'], request_payload)
+	    
+	        # Always print
+	        decoded = decrypted_request.decode('utf-8', errors='ignore').strip()
+	        print(f"\n\033[92m[Decrypted Request]\033[0m\n{decoded}\n\n")
+	
+	        # Save only if save_path is set
+	        if save_path:
+	            save_file = f'{save_path}/{unique_id}-request-{request_header["agent_id"]}.bin'
+	            with open(save_file, 'wb') as output_file:
+	                output_file.write(decrypted_request)
+	
+	    # Decrypt the Response Body
+	    if response_payload:
+	        print("  [+] Decrypting Response Body")
+	        
+	        decrypted_response = aes_decrypt_ctr(aes_keys['aes_key'], aes_keys['aes_iv'], response_payload)
+	    
+	        # Always print
+	        decoded = decrypted_response.decode('utf-8', errors='ignore').strip()
+	        print(f"\n\033[94m[Decrypted Response - {command}]\033[0m\n{decoded}\n\n")
+	
+	        # Save only if save_path is set
+	        if save_path:
+	            save_file = f'{save_path}/{unique_id}-response-{request_header["agent_id"]}.bin'
+	            with open(save_file, 'wb') as output_file:
+	                output_file.write(decrypted_response)
+	
+	
+	def read_pcap_and_get_http_pairs(pcap_file, magic_bytes, save_path):
+	    capture = pyshark.FileCapture(pcap_file, display_filter='http')
+	    http_pairs = {}
+	    current_stream = None
+	    request_data = None
+	
+	    print("[+] Parsing Packets")
+	
+	    for packet in capture:
+	        try:
+	            # Check if we are still in the same TCP stream
+	            if current_stream != packet.tcp.stream:
+	                # Reset for a new stream
+	                current_stream = packet.tcp.stream
+	                request_data = None
+	
+	            if 'HTTP' in packet:
+	                if hasattr(packet.http, 'request_method'):
+	                    # This is a request
+	                    request_data = {
+	                        'method': packet.http.request_method,
+	                        'uri': packet.http.request_full_uri,
+	                        'headers': packet.http.get_field_value('request_line'),
+	                        'file_data': packet.http.file_data if hasattr(packet.http, 'file_data') else None
+	                    }
+	                elif hasattr(packet.http, 'response_code') and request_data:
+	                    # This is a response paired with the previous request
+	                    response_data = {
+	                        'code': packet.http.response_code,
+	                        'phrase': packet.http.response_phrase,
+	                        'headers': packet.http.get_field_value('response_line'),
+	                        'file_data': packet.http.file_data if hasattr(packet.http, 'file_data') else None
+	                    }
+	                    # Pair them together in a dictionary
+	                    http_pairs[f"{current_stream}_{packet.http.request_in}"] = {
+	                        'request': request_data,
+	                        'response': response_data
+	                    }
+	
+	                    parse_request(http_pairs[f"{current_stream}_{packet.http.request_in}"], magic_bytes, save_path)
+	
+	                    #print(http_pairs[f"{current_stream}_{packet.http.request_in}"])
+	
+	                    request_data = None  # Reset request data after pairing
+	        except AttributeError as e:
+	            # Ignore packets that don't have the necessary HTTP fields
+	            pass
+	
+	
+	
+	if __name__ == "__main__":
+	    parser = argparse.ArgumentParser(description='Extract Havoc Traffic from a PCAP')
+	
+	    parser.add_argument(
+	        '--pcap',
+	        help='Path to pcap file',
+	        required=True)
+	    
+	
+	    parser.add_argument(
+	        "--aes-key", 
+	        help="AES key", 
+	        required=False)
+	    
+	    parser.add_argument(
+	        "--aes-iv", 
+	        help="AES initialization vector", 
+	        required=False)
+	    
+	    parser.add_argument(
+	        "--agent-id", 
+	        help="Agent ID", 
+	        required=False)
+	
+	    parser.add_argument(
+	        '--save',
+	        help='Save decrypted payloads to file',
+	        default=False,
+	        required=False)
+	
+	    parser.add_argument(
+	        '--magic',
+	        help='Set the magic bytes marker for the Havoc C2 traffic',
+	        default='deadbeef',
+	        required=False)
+	
+	
+	    # Parse the arguments
+	    args = parser.parse_args()
+	
+	    # Custom check for the optional values
+	    if any([args.aes_key, args.aes_iv, args.agent_id]) and not all([args.aes_key, args.aes_iv, args.agent_id]):
+	        parser.error("[!] If you provide one of 'aes-key', 'aes-iv', or 'agent-id', you must provide all three.")
+	    
+	    if args.agent_id and args.aes_key and args.aes_iv:
+	        sessions[args.agent_id] = {
+	            "aes_key": unhexlify(args.aes_key),
+	            "aes_iv": unhexlify(args.aes_iv)
+	        }
+	        print(f"[+] Added session keys for Agent ID {args.agent_id}")
+	
+	    #find_havoc_packets(packets, args.save)
+	
+	
+	    # Usage example
+	    http_pairs = read_pcap_and_get_http_pairs(args.pcap, args.magic, args.save)
+	
+
+After running this modified python script u will see answers for every question you want.
+
+What is the SID of the user that the attacker is executing everything under?
+
+S-1-5-21-679395392-3966376528-1349639417-1103 this is the SID attacker is executing everything under.
+
+
+What is the Link-local IPv6 Address of the server? Enter the answer exactly as you see it.
+
+fe80::e134:1b0c:c8d5:3020%6 this is the IPv6 address.
+
+
+The attacker printed a flag for us to see. What is that flag?
+
+THM{HavOc_C2_DeCRypTing_is_Fun_Fun_FUN} the flag we will see.
+
+
+The attacker added a new account as a persistence mechanism. What is the username and password of that account? Format is username:password
+
+administrato: W f D 3 h z 3 A X Z 4 n is the password attacker set for c2 havoc server.
+
+The attacker found an important file on the server. What is the full path of that file?
+
+C:\Users\paco\Desktop\Files\clients.csv about client file is what attacker found.
+
+What is the flag found inside the file from question 5?
+
+
+THM{I_Can_SEE_ThE_fiL3_YoU_ToOk} and this is the final flag it got us from file we have.
